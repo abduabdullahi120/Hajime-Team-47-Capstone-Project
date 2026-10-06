@@ -1,0 +1,23 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { protect, requireProjectOwner } from '../middleware/auth.js';
+import { listProjects, createProject, getProject, deleteProject } from '../controllers/projectController.js';
+import { listCollections, createCollection, deleteCollection } from '../controllers/collectionController.js';
+import { listRecords, createRecord, updateRecord, deleteRecord } from '../controllers/recordController.js';
+import { uploadFile, listFiles, downloadFile } from '../controllers/fileController.js';
+import { validate } from '../middleware/validate.js';
+import multer from 'multer';
+import path from 'node:path';
+import fs from 'node:fs';
+import { env } from '../config/env.js';
+
+const router=Router(); router.use(protect);
+router.get('/',listProjects); router.post('/',validate(z.object({name:z.string().min(2).max(80),description:z.string().max(300).optional()})),createProject);
+router.get('/:projectId',requireProjectOwner,getProject); router.delete('/:projectId',requireProjectOwner,deleteProject);
+router.get('/:projectId/collections',requireProjectOwner,listCollections); router.post('/:projectId/collections',requireProjectOwner,validate(z.object({name:z.string().min(1).max(80),description:z.string().max(300).optional()})),createCollection); router.delete('/:projectId/collections/:collectionId',requireProjectOwner,deleteCollection);
+router.get('/:projectId/collections/:collectionId/records',requireProjectOwner,listRecords); router.post('/:projectId/collections/:collectionId/records',requireProjectOwner,createRecord); router.patch('/:projectId/collections/:collectionId/records/:recordId',requireProjectOwner,updateRecord); router.delete('/:projectId/collections/:collectionId/records/:recordId',requireProjectOwner,deleteRecord);
+fs.mkdirSync(path.resolve(env.uploadDir),{recursive:true});
+const storage=multer.diskStorage({destination:(_,__,cb)=>cb(null,path.resolve(env.uploadDir)),filename:(_,file,cb)=>cb(null,`${Date.now()}-${Math.round(Math.random()*1e9)}${path.extname(file.originalname)}`)});
+const upload=multer({storage,limits:{fileSize:5*1024*1024}});
+router.get('/:projectId/files',requireProjectOwner,listFiles); router.post('/:projectId/files',requireProjectOwner,upload.single('file'),uploadFile); router.get('/:projectId/files/:fileId',requireProjectOwner,downloadFile);
+export default router;
